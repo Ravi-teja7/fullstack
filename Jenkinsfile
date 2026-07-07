@@ -2,46 +2,52 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_DIR = "/home/ec2-user/fullstack/fullstack"
+        APP_DIR = "/home/ec2-user/fullstack/fullstack"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Update Project') {
             steps {
-                checkout scm
+                sh '''
+                cd $APP_DIR
+                git pull origin main
+                '''
             }
         }
 
         stage('Build Frontend') {
             steps {
-                dir('frontend') {
-                    sh 'npm install'
-                    sh 'npm run build'
-                }
+                sh '''
+                cd $APP_DIR/frontend
+                npm install
+                npm run build
+                '''
             }
         }
 
         stage('Deploy Frontend') {
             steps {
-                sh 'sudo cp -r frontend/dist/* /usr/share/nginx/html/'
+                sh '''
+                sudo rm -rf /usr/share/nginx/html/*
+                sudo cp -r $APP_DIR/frontend/dist/* /usr/share/nginx/html/
+                '''
             }
         }
 
         stage('Setup Backend') {
             steps {
-                dir('backend') {
-                    sh '''
-                    python3 -m venv venv || true
-                    . venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
-                    '''
-                }
+                sh '''
+                cd $APP_DIR/backend
+                python3 -m venv venv || true
+                . venv/bin/activate
+                pip install --upgrade pip
+                pip install -r requirements.txt
+                '''
             }
         }
 
-        stage('Restart Backend') {
+        stage('Restart FastAPI') {
             steps {
                 sh 'sudo systemctl restart fastapi'
             }
@@ -57,11 +63,16 @@ pipeline {
 
     post {
         success {
-            echo 'Application deployed successfully!'
+            echo '======================================'
+            echo 'Deployment completed successfully!'
+            echo '======================================'
         }
 
         failure {
-            echo 'Deployment failed.'
+            echo '======================================'
+            echo 'Deployment failed!'
+            echo 'Check the Jenkins console output.'
+            echo '======================================'
         }
     }
 }
